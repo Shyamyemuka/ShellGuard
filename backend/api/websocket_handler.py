@@ -42,8 +42,9 @@ class WebSocketHandler:
             return
         
         try:
-            # Read initial PTY output
-            await asyncio.sleep(0.5)
+            # Wait for initial shell startup and prompt
+            await asyncio.sleep(1.0)
+            print(f"Terminal session started successfully")
             
             # Message loop
             while True:
@@ -105,12 +106,13 @@ class WebSocketHandler:
     async def _send_output(self, data: bytes):
         """Send PTY output to client"""
         try:
+            text = data.decode("utf-8", errors="replace")
             await self.ws.send_json({
                 "type": "output",
-                "data": data.decode("utf-8", errors="replace")
+                "data": text
             })
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error sending output: {e}")
     
     async def _send_warning(self, result: InterceptionResult):
         """Send warning to client"""

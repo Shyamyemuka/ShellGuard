@@ -35,6 +35,7 @@ class ShellGuardSession:
     _read_task: Optional[asyncio.Task] = None
     _running: bool = False
     _db: Database = field(default_factory=Database)
+    _input_chars_count: int = 0  # Track characters in current input line
     
     async def start(self) -> bool:
         """Start the session"""
@@ -66,16 +67,71 @@ class ShellGuardSession:
         if data in ["\r", "\n"]:
             command = self.buffer.get_command()
             self.buffer.clear()
+            self._input_chars_count = 0  # Reset counter
+            
+            # Send newline for visual feedback
+            if self.on_output:
+                await self.on_output(b"\r\n")
             
             if command.strip():
                 await self._process_command(command)
             else:
-                # Empty command - just send Enter
+                # Empty command - just send Enter to shell
                 await self.pty.write(b"\r")
         else:
-            # Buffer the input and forward to PTY for echo
-            self.buffer.add(data)
-            await self.pty.write(data.encode())
+            # Process data string, handling escape sequences properly
+            i = 0
+            while i < len(data):
+                char = data[i]
+                
+                # Skip escape sequences entirely (arrow keys, home, end, delete, etc.)
+                # These don't work reliably with Windows subprocess
+                if char == '\x1b':
+                    # Skip the entire escape sequence
+                    i += 1
+                    if i < len(data) and data[i] in ['[', 'O']:
+                        # CSI or SS3 sequence - skip until we find the terminator
+                        i += 1
+                        while i < len(data) and data[i] not in 'ABCDEFGHPRSabcdefghprs~':
+                            i += 1
+                        i += 1  # Skip the terminator
+                    continue
+                
+                # Backspace - only allow if we have input characters
+                elif char in ["\x7f", "\x08"]:
+                    if self._input_chars_count > 0 and self.buffer._cursor_pos > 0:
+                        self.buffer.add(char)
+                        self._input_chars_count -= 1
+                        # Visual backspace
+                        if self.on_output:
+                            await self.on_output(b"\x08 \x08")
+                
+                # Printable characters and tab
+                elif ord(char) >= 32 or char == "\t":
+                    self.buffer.add(char)
+                    self._input_chars_count += 1
+                    # Echo character
+                    if self.on_output:
+                        await self.on_output(char.encode())
+                
+                # Control characters
+                elif char == "\x03":  # Ctrl+C
+                    self.buffer.clear()
+                    self._input_chars_count = 0
+                    if self.on_output:
+                        await self.on_output(b"^C\r\n")
+                    await self.pty.write(b"\x03")
+                
+                elif char == "\x15":  # Ctrl+U (clear line)
+                    if self._input_chars_count > 0:
+                        # Send backspaces to clear all input
+                        for _ in range(self._input_chars_count):
+                            if self.on_output:
+                                await self.on_output(b"\x08 \x08")
+                        self.buffer.clear()
+                        self._input_chars_count = 0
+                
+                i += 1
     
     async def _process_command(self, command: str) -> None:
         """Process an intercepted command"""
@@ -97,8 +153,9 @@ class ShellGuardSession:
             if self.on_blocked:
                 await self.on_blocked(result)
             await self._log_command(command, result, CommandAction.BLOCKED)
-            # Clear the line and show new prompt
-            await self.pty.write(b"\x15\r")
+            # Send Enter to get a new prompt
+            await self.pty.write(b"\r")
+            await asyncio.sleep(0.1)  # Wait for prompt
         elif result.should_block:
             # Needs user decision
             self.stats.warnings_issued += 1
@@ -149,8 +206,9 @@ class ShellGuardSession:
         """User cancelled the command"""
         if self._pending_command:
             self.stats.cancelled += 1
-            # Clear line and show new prompt
-            await self.pty.write(b"\x15\r")
+            # Send Enter to get a new prompt
+            await self.pty.write(b"\r")
+            await asyncio.sleep(0.1)  # Wait for prompt
             await self._log_command(
                 self._pending_command,
                 self._pending_interception,
@@ -167,16 +225,18 @@ class ShellGuardSession:
     async def _execute_command(self, command: str) -> None:
         """Execute a command in the PTY"""
         await self.pty.write(f"{command}\r".encode())
+        # Give PowerShell a moment to process and output the prompt
+        await asyncio.sleep(0.1)
     
     async def _read_loop(self) -> None:
         """Continuously read from PTY and send output"""
         while self._running:
             try:
-                data = await self.pty.read(timeout=0.01)
+                data = await self.pty.read(timeout=0.05)
                 if data and self.on_output:
                     await self.on_output(data)
                 else:
-                    await asyncio.sleep(0.01)
+                    await asyncio.sleep(0.001)
             except Exception as e:
                 if self._running:
                     print(f"Error in read loop: {e}")

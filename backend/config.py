@@ -2,7 +2,7 @@
 ShellGuard Configuration
 """
 import os
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -31,8 +31,13 @@ class Settings(BaseSettings):
     database_path: str = os.getenv("DATABASE_PATH", "./data/shellguard.db")
     
     # Security
-    cors_origins: List[str] = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
+    cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001")
     ws_idle_timeout: int = int(os.getenv("WS_IDLE_TIMEOUT_SECONDS", "1800"))
+    
+    @property
+    def cors_origins_list(self) -> List[str]:
+        """Get CORS origins as a list"""
+        return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
     
     class Config:
         env_file = ".env"

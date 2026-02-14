@@ -12,7 +12,10 @@ class CommandBuffer:
     def add(self, data: str) -> None:
         """Add data to the buffer"""
         for char in data:
-            if char == "\x7f":  # Backspace
+            # Skip escape sequences - they're handled separately
+            if char == '\x1b':
+                continue
+            if char == "\x7f" or char == "\x08":  # Backspace (DEL or BS)
                 if self._cursor_pos > 0:
                     self._buffer = (
                         self._buffer[:self._cursor_pos - 1] +
