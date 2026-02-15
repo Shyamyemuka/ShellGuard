@@ -1,4 +1,4 @@
 #!/bin/bash
-cd /opt/render/project/src/backend
-export PYTHONPATH=/opt/render/project/src/backend:$PYTHONPATH
+# Set working directory and Python path
+export PYTHONPATH=$PWD:$PYTHONPATH
 exec python -m uvicorn main:app --host 0.0.0.0 --port $PORT
