@@ -29,6 +29,7 @@ class WebSocketHandler:
         self.session.on_warning = self._send_warning
         self.session.on_blocked = self._send_blocked
         self.session.on_analyzing = self._send_analyzing
+        self.session.on_analysis_complete = self._send_analysis_complete
         self.session.on_stats_update = self._send_stats_update
         
         # Start PTY session
@@ -158,6 +159,18 @@ class WebSocketHandler:
             await self.ws.send_json({
                 "type": "analyzing",
                 "command": command
+            })
+        except Exception:
+            pass
+    
+    async def _send_analysis_complete(self, command: str, result: InterceptionResult):
+        """Send analysis complete notification for safe commands"""
+        try:
+            await self.ws.send_json({
+                "type": "analysis_complete",
+                "command": command,
+                "risk_level": result.risk_level.value if result else "safe",
+                "analysis": result.analysis.to_dict() if result and result.analysis else None
             })
         except Exception:
             pass

@@ -56,6 +56,14 @@ else:
                     os.close(self.master_fd)
                     os.setsid()
                     
+                    # Change to sandbox directory if enabled
+                    from config import settings
+                    if settings.sandbox_mode and os.path.exists(settings.sandbox_dir):
+                        try:
+                            os.chdir(settings.sandbox_dir)
+                        except Exception as e:
+                            print(f"Warning: Could not change to sandbox dir: {e}")
+                    
                     # Set up slave as controlling terminal
                     os.dup2(self.slave_fd, 0)
                     os.dup2(self.slave_fd, 1)

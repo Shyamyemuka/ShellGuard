@@ -11,6 +11,7 @@ from api.websocket_handler import WebSocketHandler
 from api.routes import router as api_router
 from data.database import init_database
 from archestra.observability import setup_observability
+from archestra.mcp_client import get_archestra_client
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,10 +19,28 @@ async def lifespan(app: FastAPI):
     # Startup
     await init_database()
     setup_observability()
-    print("🛡️ ShellGuard Backend Started")
+    
+    # Initialize Archestra MCP client
+    archestra_client = get_archestra_client()
+    
+    # Setup sandbox if enabled
+    if settings.sandbox_mode:
+        from setup_sandbox import setup_sandbox
+        try:
+            setup_sandbox()
+            print(f"🏖️  Sandbox mode enabled at: {settings.sandbox_dir}")
+        except Exception as e:
+            print(f"⚠️  Sandbox setup failed: {e}")
+    
+    print("🛡️  ShellGuard Backend Started")
+    print(f"   App Environment: {settings.app_env}")
+    print(f"   Port: {settings.app_port}")
+    print(f"   Archestra MCP: {'✅ Enabled' if archestra_client.enabled else '❌ Disabled'}")
+    print(f"   Sandbox Mode: {'✅ Enabled' if settings.sandbox_mode else '❌ Disabled'}")
+    
     yield
     # Shutdown
-    print("🛡️ ShellGuard Backend Stopped")
+    print("🛡️  ShellGuard Backend Stopped")
 
 app = FastAPI(
     title="ShellGuard API",

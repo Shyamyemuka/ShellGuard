@@ -8,6 +8,7 @@ import google.generativeai as genai
 
 from config import settings
 from data.models import RiskLevel, RiskAnalysis, CommandBreakdown
+from archestra.mcp_client import get_archestra_client
 
 SYSTEM_PROMPT = """You are ShellGuard, an AI terminal safety assistant. Your job is to analyze
 shell commands and assess their risk level before they are executed.
@@ -38,6 +39,8 @@ You must respond with a JSON object following this exact schema:
 
 Guidelines:
 - Be accurate and specific about what the command does
+- **INVALID COMMANDS**: If the command appears to be gibberish, a typo, or doesn't correspond to any known shell command, set risk_level to "low", allow to false, title to "Invalid Command", and explanation to indicate the command doesn't exist
+- For invalid commands, suggest a similar valid command in safer_alternative if you can guess what they meant
 - Consider the COMBINATION of flags (rm -rf is worse than rm -r)
 - Consider the TARGET path (deleting /tmp is less risky than /etc)
 - **CONTEXTUAL AWARENESS**: Consider the working directory - operations in system dirs like /etc, /usr, /var are riskier
@@ -48,7 +51,7 @@ Guidelines:
 - Be concise but thorough in explanations
 
 Risk Score Guidelines:
-- 0-20: Low risk, generally safe
+- 0-20: Low risk, generally safe or command doesn't exist
 - 21-50: Medium risk, could cause issues
 - 51-80: High risk, likely to cause damage
 - 81-100: Critical risk, catastrophic potential
@@ -56,9 +59,13 @@ Risk Score Guidelines:
 
 
 class AIAnalyzer:
-    """AI-powered command analysis using Gemini"""
+    """AI-powered command analysis using Archestra MCP Gateway (primary) or Gemini (fallback)"""
     
     def __init__(self):
+        # Initialize Archestra MCP client
+        self.archestra_client = get_archestra_client()
+        
+        # Initialize Gemini as fallback
         if settings.gemini_api_key:
             genai.configure(api_key=settings.gemini_api_key)
             self.model = genai.GenerativeModel(settings.llm_model)
@@ -72,7 +79,40 @@ class AIAnalyzer:
         user: str = "user",
         preliminary_risk: str = "medium"
     ) -> Optional[RiskAnalysis]:
-        """Analyze a command using AI"""
+        """Analyze a command using AI (Archestra MCP Gateway first, Gemini fallback)"""
+        
+        # 1. Try Archestra MCP Gateway first (if enabled)
+        if self.archestra_client.enabled:
+            print(f"🤖 Using Archestra MCP Gateway for analysis...")
+            result = await self.archestra_client.analyze_command(
+                command=command,
+                working_directory=working_directory,
+                user=user,
+                preliminary_risk=preliminary_risk
+            )
+            if result:
+                print(f"✅ Archestra analysis complete: {result.title}")
+                return result
+            else:
+                print(f"⚠️  Archestra analysis failed, falling back to Gemini...")
+        
+        # 2. Fall back to direct Gemini API
+        if self.model:
+            print(f"🔮 Using Gemini API for analysis...")
+            return await self._analyze_with_gemini(command, working_directory, user, preliminary_risk)
+        
+        # 3. If both fail, return pattern-based fallback
+        print(f"⚠️  All AI providers unavailable, using pattern-based analysis")
+        return self._fallback_analysis(command, preliminary_risk)
+    
+    async def _analyze_with_gemini(
+        self,
+        command: str,
+        working_directory: str,
+        user: str,
+        preliminary_risk: str
+    ) -> Optional[RiskAnalysis]:
+        """Analyze using direct Gemini API"""
         if not self.model:
             return self._fallback_analysis(command, preliminary_risk)
         

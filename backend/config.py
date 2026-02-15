@@ -2,16 +2,23 @@
 ShellGuard Configuration
 """
 import os
+from pathlib import Path
 from typing import List, Optional
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env from backend directory
+env_path = Path(__file__).parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"✅ Loaded environment from: {env_path}")
+else:
+    print("⚠️  No .env file found at backend/.env")
 
 class Settings(BaseSettings):
     # Application
     app_env: str = os.getenv("APP_ENV", "development")
-    app_port: int = int(os.getenv("APP_PORT", "8000"))
+    app_port: int = int(os.getenv("PORT", os.getenv("APP_PORT", "8000")))  # Render uses $PORT
     
     # LLM
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
@@ -33,6 +40,10 @@ class Settings(BaseSettings):
     # Security
     cors_origins: str = os.getenv("CORS_ORIGINS", "http://localhost:3000,http://localhost:3001")
     ws_idle_timeout: int = int(os.getenv("WS_IDLE_TIMEOUT_SECONDS", "1800"))
+    
+    # Sandbox (for safe demo deployment)
+    sandbox_mode: bool = os.getenv("SANDBOX_MODE", "true").lower() == "true"
+    sandbox_dir: str = os.getenv("SANDBOX_DIR", "/tmp/shellguard_sandbox")
     
     @property
     def cors_origins_list(self) -> List[str]:

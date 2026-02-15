@@ -28,6 +28,7 @@ class ShellGuardSession:
     on_warning: Optional[Callable[[InterceptionResult], Awaitable[None]]] = None
     on_blocked: Optional[Callable[[InterceptionResult], Awaitable[None]]] = None
     on_analyzing: Optional[Callable[[str], Awaitable[None]]] = None
+    on_analysis_complete: Optional[Callable[[str, InterceptionResult], Awaitable[None]]] = None
     on_stats_update: Optional[Callable[[SessionStats], Awaitable[None]]] = None
     
     _pending_command: Optional[str] = None
@@ -63,78 +64,65 @@ class ShellGuardSession:
     
     async def handle_input(self, data: str) -> None:
         """Handle input from the user"""
-        # Check for Enter key
+        # Check for Enter key - this is when we actually process
         if data in ["\r", "\n"]:
             command = self.buffer.get_command()
             self.buffer.clear()
-            self._input_chars_count = 0  # Reset counter
-            
-            # Send newline for visual feedback
-            if self.on_output:
-                await self.on_output(b"\r\n")
+            self._input_chars_count = 0
             
             if command.strip():
                 await self._process_command(command)
             else:
-                # Empty command - just send Enter to shell
+                # Empty command - send to shell for new prompt
                 await self.pty.write(b"\r")
         else:
-            # Process data string, handling escape sequences properly
+            # Buffer all input but DON'T echo - let xterm.js handle display
             i = 0
             while i < len(data):
                 char = data[i]
                 
-                # Skip escape sequences entirely (arrow keys, home, end, delete, etc.)
-                # These don't work reliably with Windows subprocess
-                if char == '\x1b':
+                # Handle escape sequences (e.g., arrow keys, function keys)
+                if char == '\x1b' and i + 1 < len(data):
                     # Skip the entire escape sequence
-                    i += 1
-                    if i < len(data) and data[i] in ['[', 'O']:
-                        # CSI or SS3 sequence - skip until we find the terminator
-                        i += 1
-                        while i < len(data) and data[i] not in 'ABCDEFGHPRSabcdefghprs~':
+                    if data[i + 1] == '[':
+                        # CSI sequence: ESC [ ... letter
+                        i += 2
+                        while i < len(data) and data[i] not in 'ABCDEFGHJKSTfmnsulh':
                             i += 1
-                        i += 1  # Skip the terminator
+                        i += 1
+                        continue
+                    elif data[i + 1] == 'O':
+                        # SS3 sequence: ESC O letter
+                        i += 3
+                        continue
+                    else:
+                        # Other escape sequence
+                        i += 2
+                        continue
+                elif char == '\x1b':
+                    # Standalone ESC
+                    i += 1
                     continue
-                
-                # Backspace - only allow if we have input characters
-                elif char in ["\x7f", "\x08"]:
-                    if self._input_chars_count > 0 and self.buffer._cursor_pos > 0:
+                    
+                # Track input for backspace protection (buffer handles the actual logic)
+                if char in ["\x7f", "\x08"]:
+                    if self._input_chars_count > 0:
                         self.buffer.add(char)
                         self._input_chars_count -= 1
-                        # Visual backspace
-                        if self.on_output:
-                            await self.on_output(b"\x08 \x08")
-                
-                # Printable characters and tab
                 elif ord(char) >= 32 or char == "\t":
                     self.buffer.add(char)
                     self._input_chars_count += 1
-                    # Echo character
-                    if self.on_output:
-                        await self.on_output(char.encode())
-                
-                # Control characters
                 elif char == "\x03":  # Ctrl+C
                     self.buffer.clear()
                     self._input_chars_count = 0
-                    if self.on_output:
-                        await self.on_output(b"^C\r\n")
                     await self.pty.write(b"\x03")
-                
-                elif char == "\x15":  # Ctrl+U (clear line)
-                    if self._input_chars_count > 0:
-                        # Send backspaces to clear all input
-                        for _ in range(self._input_chars_count):
-                            if self.on_output:
-                                await self.on_output(b"\x08 \x08")
-                        self.buffer.clear()
-                        self._input_chars_count = 0
                 
                 i += 1
     
     async def _process_command(self, command: str) -> None:
         """Process an intercepted command"""
+        print(f"[DEBUG] Processing command: {repr(command)}")
+        
         # Notify analyzing
         if self.on_analyzing:
             await self.on_analyzing(command)
@@ -144,6 +132,8 @@ class ShellGuardSession:
             command=command,
             working_directory=await self._get_cwd()
         )
+        
+        print(f"[DEBUG] Interception result: should_block={result.should_block}, risk_level={result.risk_level}, has_analysis={result.analysis is not None}")
         
         self.stats.total_commands += 1
         
@@ -166,6 +156,10 @@ class ShellGuardSession:
         else:
             # Safe - execute immediately
             self.stats.safe_commands += 1
+            # Notify analysis complete for safe commands
+            if self.on_analysis_complete:
+                print(f"[DEBUG] Sending analysis_complete for: {repr(command)}")
+                await self.on_analysis_complete(command, result)
             await self._execute_command(command)
             await self._log_command(command, result, CommandAction.EXECUTED)
         

@@ -17,6 +17,12 @@ interface BlockedState {
     risk_level: string
 }
 
+interface ToastNotification {
+    id: number
+    message: string
+    type: 'info' | 'warning' | 'error' | 'success'
+}
+
 interface UseTerminalSocketOptions {
     onWarning?: (command: string, analysis: AnalysisResult) => void
     onStatsUpdate?: (stats: SessionStats) => void
@@ -31,6 +37,13 @@ export function useTerminalSocket(options: UseTerminalSocketOptions = {}) {
     const [analyzingCommand, setAnalyzingCommand] = useState('')
     const [warning, setWarning] = useState<WarningState | null>(null)
     const [blocked, setBlocked] = useState<BlockedState | null>(null)
+    const [toasts, setToasts] = useState<ToastNotification[]>([])
+    const toastIdRef = useRef(0)
+
+    const showToast = useCallback((message: string, type: ToastNotification['type'] = 'info') => {
+        const id = toastIdRef.current++
+        setToasts(prev => [...prev, { id, message, type }])
+    }, [])
 
     const connect = useCallback(() => {
         const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws/terminal'
@@ -71,6 +84,21 @@ export function useTerminalSocket(options: UseTerminalSocketOptions = {}) {
             case 'analyzing':
                 setIsAnalyzing(true)
                 setAnalyzingCommand(message.command)
+                break
+
+            case 'analysis_complete':
+                setIsAnalyzing(false)
+                setAnalyzingCommand('')
+                // If analysis shows invalid command, show a toast notification
+                if (message.analysis && message.analysis.title === 'Invalid Command') {
+                    showToast(`Command not found: "${message.command}". ${message.analysis.explanation}`, 'warning')
+                } else if (message.analysis && message.analysis.title) {
+                    // For other safe commands with analysis feedback
+                    const explanation = message.analysis.explanation
+                    if (explanation && explanation.length < 100) {
+                        showToast(explanation, 'info')
+                    }
+                }
                 break
 
             case 'warning':
@@ -189,9 +217,11 @@ export function useTerminalSocket(options: UseTerminalSocketOptions = {}) {
         analyzingCommand,
         warning,
         blocked,
+        toasts,
         sendApprove,
         sendCancel,
         sendUseAlternative,
         writeToTerminal,
+        removeToast: (id: number) => setToasts(prev => prev.filter(t => t.id !== id)),
     }
 }

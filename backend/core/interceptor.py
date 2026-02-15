@@ -24,11 +24,38 @@ class InterceptionResult:
 class CommandInterceptor:
     """Intercepts and analyzes commands before execution"""
     
+    # Common safe commands that don't need AI analysis
+    KNOWN_SAFE_COMMANDS = {
+        'ls', 'dir', 'cd', 'pwd', 'echo', 'cat', 'less', 'more', 'head', 'tail',
+        'grep', 'find', 'which', 'whereis', 'whoami', 'date', 'time', 'uptime',
+        'ps', 'top', 'htop', 'free', 'df', 'du', 'history', 'exit', 'clear', 'cls',
+        'man', 'help', 'type', 'alias', 'env', 'printenv', 'hostname', 'uname',
+        'git status', 'git log', 'git diff', 'git branch', 'npm list', 'pip list',
+        'python --version', 'node --version', 'java -version', 'gcc --version',
+        'ping', 'traceroute', 'nslookup', 'dig', 'curl', 'wget',
+    }
+    
     def __init__(self):
         self.pattern_matcher = PatternMatcher()
         self.ai_analyzer = AIAnalyzer()
         self.risk_scorer = RiskScorer()
         self.guardrails = GuardrailsValidator()
+    
+    def _is_known_safe_command(self, command: str) -> bool:
+        """Check if command is a known safe command"""
+        cmd_lower = command.lower().strip()
+        # Check exact matches
+        if cmd_lower in self.KNOWN_SAFE_COMMANDS:
+            return True
+        # Check if starts with a known safe command
+        cmd_parts = cmd_lower.split()
+        if cmd_parts:
+            base_cmd = cmd_parts[0]
+            # Common read-only flags
+            if base_cmd in {'ls', 'dir', 'cat', 'grep', 'find', 'git', 'npm', 'pip', 'python', 'node'}:
+                # These are generally safe with most flags
+                return True
+        return False
     
     async def intercept(
         self,
@@ -56,13 +83,36 @@ class CommandInterceptor:
         # Tier 1: Quick pattern matching
         pattern_result = self.pattern_matcher.check(command)
         
-        # Handle safe commands - pass through immediately
+        # Handle safe commands - check if it's a known safe command first
         if pattern_result.risk_level == RiskLevel.SAFE:
+            # If it's a known safe command, pass through immediately
+            if self._is_known_safe_command(command):
+                latency = int((time.time() - start_time) * 1000)
+                return InterceptionResult(
+                    should_block=False,
+                    risk_level=RiskLevel.SAFE,
+                    analysis=None,
+                    is_hard_block=False,
+                    pattern_matched=None,
+                    analysis_latency_ms=latency
+                )
+            
+            # Unknown command - use AI to check if it's valid/exists
+            analysis = await self.ai_analyzer.analyze(
+                command=command,
+                working_directory=working_directory,
+                user=user,
+                preliminary_risk="safe"
+            )
+            
             latency = int((time.time() - start_time) * 1000)
+            if analysis:
+                analysis.analysis_latency_ms = latency
+                
             return InterceptionResult(
                 should_block=False,
                 risk_level=RiskLevel.SAFE,
-                analysis=None,
+                analysis=analysis,
                 is_hard_block=False,
                 pattern_matched=None,
                 analysis_latency_ms=latency

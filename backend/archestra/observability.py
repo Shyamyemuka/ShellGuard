@@ -94,11 +94,14 @@ def track_command(
     ai_invoked: bool = False,
     tokens_used: int = 0
 ) -> None:
-    """Track a command execution"""
+    """Track a command execution (locally and send to Archestra)"""
     import uuid
+    import asyncio
+    
+    trace_id = str(uuid.uuid4())
     
     trace = CommandTrace(
-        trace_id=str(uuid.uuid4()),
+        trace_id=trace_id,
         command=command[:100],  # Truncate for privacy
         timestamp=datetime.utcnow(),
         risk_level=risk_level,
@@ -109,6 +112,7 @@ def track_command(
         tokens_used=tokens_used
     )
     
+    # Store locally
     _metrics.add_trace(trace)
     _metrics.increment_command(risk_level, action)
     
@@ -120,3 +124,28 @@ def track_command(
     
     _metrics.record_analysis_duration(latency_ms / 1000)
     _metrics.tokens_total += tokens_used
+    
+    # Send to Archestra observability (async, non-blocking)
+    try:
+        from .mcp_client import get_archestra_client
+        client = get_archestra_client()
+        if client.enabled:
+            # Fire and forget - don't block on observability
+            asyncio.create_task(
+                client.send_trace(
+                    trace_id=trace_id,
+                    command=command,
+                    risk_level=risk_level,
+                    action=action,
+                    latency_ms=latency_ms,
+                    metadata={
+                        "timestamp": trace.timestamp.isoformat(),
+                        "pattern_matched": pattern_matched,
+                        "ai_invoked": ai_invoked,
+                        "tokens_used": tokens_used
+                    }
+                )
+            )
+    except Exception as e:
+        # Don't fail if observability fails
+        print(f"⚠️  Archestra observability error: {e}")

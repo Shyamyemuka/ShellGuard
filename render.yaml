@@ -1,0 +1,26 @@
+# Render Blueprint Configuration
+# This file configures your ShellGuard deployment on Render
+
+services:
+  # Backend Service
+  - type: web
+    name: shellguard-backend
+    env: python
+    region: oregon
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: APP_ENV
+        value: production
+      - key: SANDBOX_MODE
+        value: "true"
+      - key: SANDBOX_DIR
+        value: /tmp/shellguard_sandbox
+      - key: DATABASE_PATH
+        value: /tmp/shellguard.db
+      - key: CORS_ORIGINS
+        sync: false # Set this in Render dashboard with your Vercel URL
+      - key: GEMINI_API_KEY
+        sync: false # ⚠️ SET THIS IN RENDER DASHBOARD - DO NOT COMMIT
+    healthCheckPath: /api/health

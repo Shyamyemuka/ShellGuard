@@ -13,34 +13,50 @@
 ## 🎯 Problem Statement
 
 Every engineer has a horror story about a mistyped or copy-pasted command that caused damage:
+
 - `rm -rf /` instead of `rm -rf ./`
 - Running untrusted scripts from the internet with `curl | bash`
 - Accidentally deleting production data
 - Breaking system permissions with overly permissive `chmod` commands
 
 Traditional solutions either:
+
 - Block commands entirely (restrictive, frustrating)
 - Offer no protection (dangerous)
 - Require complex configuration (time-consuming)
 
 **ShellGuard solves this by:**
+
 1. **Intercepting** commands before execution
 2. **Analyzing** risk using pattern matching + AI
 3. **Explaining** what the command does and why it's dangerous
 4. **Suggesting** safer alternatives
 5. **Logging** everything for audit and learning
 
+### 🏖️ **Sandbox Protection for Deployment**
+
+When deployed, ShellGuard runs in **sandbox mode** by default:
+
+- Terminal sessions run in an isolated directory (`/tmp/shellguard_sandbox`)
+- Your application code and environment variables are protected
+- Users can safely test dangerous commands without affecting the server
+- Perfect for demos, hackathons, and learning environments
+
+✅ **Deploy publicly without worrying** - the sandbox keeps your deployment safe!
+
 ---
 
 ## ✨ Key Features
 
 ### 🖥️ **Web-Based Terminal Emulator**
+
 - Full-featured terminal in your browser using **xterm.js**
 - Real PTY (pseudo-terminal) backend with actual shell session
 - Supports ANSI colors, escape sequences, scrollback, copy/paste
 - Dynamic resizing and JetBrains Mono/Fira Code fonts
 
 ### 🔍 **Real-Time Command Interception**
+
 - Captures commands **before** execution
 - Zero-latency pass-through for safe commands (<5ms)
 - Two-tier analysis architecture:
@@ -48,6 +64,7 @@ Traditional solutions either:
   - **Tier 2**: Deep AI analysis for nuanced risks
 
 ### 🤖 **AI-Powered Risk Analysis**
+
 - **Google Gemini 1.5 Flash** for fast, accurate analysis
 - Structured risk assessment with:
   - Risk level: Critical / High / Medium / Low / Safe
@@ -59,6 +76,7 @@ Traditional solutions either:
 - Command breakdown with flag-by-flag explanation
 
 ### 📊 **Visual Risk Breakdown**
+
 - Interactive warning overlay with:
   - Color-coded risk badges
   - Consequence mapping (bullet points of what could happen)
@@ -67,12 +85,14 @@ Traditional solutions either:
   - Command part-by-part breakdown
 
 ### 💡 **Intelligent Safer Alternatives**
+
 - AI-generated safer commands that achieve the same goal
 - Side-by-side comparison of original vs. safe alternative
 - Explanation of why the alternative is safer
 - One-click "Use Safe Alternative" button
 
 ### 📝 **Complete Audit Trail**
+
 - Full command history with timestamps
 - Logs every command: safe, warned, approved, cancelled, blocked
 - Session statistics dashboard showing:
@@ -83,6 +103,7 @@ Traditional solutions either:
 - SQLite persistence (survives restarts)
 
 ### 🏗️ **Deep Archestra Integration**
+
 - **MCP (Model Context Protocol)** agent orchestration
 - **3 MCP Tools**: `analyze_command`, `suggest_alternative`, `explain_command`
 - **Security Guardrails**:
@@ -93,7 +114,9 @@ Traditional solutions either:
 - **Observability**: Traces, metrics, latency tracking
 
 ### 🔒 **Hard Command Blocks**
+
 Certain catastrophic commands are **immediately blocked** without AI delay:
+
 - `rm -rf /` (filesystem destruction)
 - Fork bombs `:(){ :|:& };:`
 - Writing to block devices `dd if=/dev/zero of=/dev/sda`
@@ -228,31 +251,34 @@ ShellGuard/
 
 ### Prerequisites
 
-| Requirement | Version | Purpose |
-|------------|---------|---------|
-| **Python** | 3.11+ | Backend runtime |
-| **Node.js** | 20+ | Frontend build |
-| **pip** | Latest | Python package manager |
-| **npm** | Latest | Node package manager |
-| **Docker** (optional) | Latest | Containerized deployment |
-| **Google Gemini API Key** | - | AI analysis |
+| Requirement               | Version | Purpose                  |
+| ------------------------- | ------- | ------------------------ |
+| **Python**                | 3.11+   | Backend runtime          |
+| **Node.js**               | 20+     | Frontend build           |
+| **pip**                   | Latest  | Python package manager   |
+| **npm**                   | Latest  | Node package manager     |
+| **Docker** (optional)     | Latest  | Containerized deployment |
+| **Google Gemini API Key** | -       | AI analysis              |
 
 ### Installation
 
 #### Option 1: Local Development
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/Shyamyemuka/ShellGuard.git
    cd ShellGuard
    ```
 
 2. **Set up environment variables**
+
    ```bash
    cp .env.example .env
    ```
-   
+
    Edit `.env` and add your Google Gemini API key:
+
    ```env
    GOOGLE_API_KEY=your_gemini_api_key_here
    BACKEND_PORT=8000
@@ -261,25 +287,27 @@ ShellGuard/
    ```
 
 3. **Start the backend**
+
    ```bash
    cd backend
    pip install -r requirements.txt
    python main.py
    ```
-   
+
    Backend will start on `http://localhost:8000`
 
 4. **Start the frontend** (in a new terminal)
+
    ```bash
    cd frontend
    npm install
    npm run dev
    ```
-   
+
    Frontend will start on `http://localhost:3000`
 
 5. **Open the app**
-   
+
    Navigate to `http://localhost:3000` in your browser
 
 #### Option 2: Docker Deployment
@@ -305,42 +333,49 @@ Access the app at `http://localhost:3000`
 When a risky command is detected, you'll see:
 
 **Header**
+
 - 🛡️ ShellGuard logo
 - Risk level badge (color-coded)
 
 **Command Display**
+
 - Your command highlighted in monospace
 
 **Risk Analysis**
+
 - **Title**: Short description (e.g., "Recursive Force Delete")
 - **Explanation**: What the command does and why it's dangerous
 - **Consequences**: Bullet points of potential outcomes
 
 **Risk Breakdown Bars**
+
 - 📊 Data Loss Risk: 0-100%
 - 🔧 Service Impact Risk: 0-100%
 - 🔄 Irreversibility: 0-100% (higher = harder to undo)
 
 **Safer Alternative** (when available)
+
 - Green-highlighted alternative command
 - Explanation of why it's safer
 
 **Action Buttons**
+
 - ✅ **Approve**: Execute the original risky command
 - 🔄 **Use Safe Alternative**: Execute the suggested safer command
 - ❌ **Cancel**: Abort, don't execute anything
 
 ### Keyboard Shortcuts
 
-| Key | Action |
-|-----|--------|
-| `Enter` | Approve and execute original command |
-| `S` | Use safe alternative |
-| `Escape` | Cancel |
+| Key      | Action                               |
+| -------- | ------------------------------------ |
+| `Enter`  | Approve and execute original command |
+| `S`      | Use safe alternative                 |
+| `Escape` | Cancel                               |
 
 ### Example Workflows
 
 #### Workflow 1: Learning from Mistakes
+
 ```bash
 # You type:
 $ rm -rf /var/log/*
@@ -359,6 +394,7 @@ $ find /var/log -type f -name "*.log" -mtime +30 -delete
 ```
 
 #### Workflow 2: Blocking Catastrophic Commands
+
 ```bash
 # You type:
 $ rm -rf /
@@ -371,6 +407,7 @@ This command is catastrophically dangerous and cannot be approved.
 ```
 
 #### Workflow 3: Understanding Complex Commands
+
 ```bash
 # You type:
 $ docker system prune -a --volumes
@@ -426,6 +463,7 @@ Access `/dashboard` to view:
 **Endpoint**: `ws://localhost:8000/ws/terminal`
 
 **Client → Server Messages**:
+
 ```typescript
 {
   "type": "input",
@@ -440,6 +478,7 @@ Access `/dashboard` to view:
 ```
 
 **Server → Client Messages**:
+
 ```typescript
 // Terminal output
 {
@@ -463,9 +502,11 @@ Access `/dashboard` to view:
 ### REST API
 
 #### `GET /api/stats`
+
 Get session and all-time statistics
 
 **Response**:
+
 ```json
 {
   "session": {
@@ -484,14 +525,17 @@ Get session and all-time statistics
 ```
 
 #### `GET /api/history`
+
 Get command history (paginated)
 
 **Query Params**:
+
 - `limit`: Number of entries (default: 50)
 - `offset`: Pagination offset
 - `risk_level`: Filter by risk (safe/low/medium/high/critical)
 
 **Response**:
+
 ```json
 [
   {
@@ -513,6 +557,7 @@ Get command history (paginated)
 ShellGuard detects **50+ dangerous patterns** across these categories:
 
 ### Critical (Immediate Block)
+
 - `rm -rf /` — Root filesystem deletion
 - `:(){ :|:& };:` — Fork bomb
 - `dd if=/dev/zero of=/dev/sda` — Overwriting disk
@@ -521,6 +566,7 @@ ShellGuard detects **50+ dangerous patterns** across these categories:
 - `curl ... | sudo bash` — Piping remote script to root
 
 ### High Risk (AI Analysis)
+
 - `rm -rf` — Recursive force delete
 - `DROP TABLE`, `TRUNCATE` — Database destruction
 - `kill -9`, `killall` — Force process termination
@@ -528,6 +574,7 @@ ShellGuard detects **50+ dangerous patterns** across these categories:
 - `chmod 777` — Dangerous permissions
 
 ### Medium Risk (AI Analysis)
+
 - `apt remove`, `yum remove` — Package removal
 - `iptables -F`, `ufw disable` — Firewall changes
 - `systemctl stop` — Service management
@@ -535,6 +582,7 @@ ShellGuard detects **50+ dangerous patterns** across these categories:
 - `git push --force` — Force push
 
 ### Low Risk (Usually passes)
+
 - `chmod` (non-recursive, non-777)
 - `kill` (without -9)
 - Configuration file edits
@@ -544,21 +592,25 @@ ShellGuard detects **50+ dangerous patterns** across these categories:
 ## 🔐 Security & Privacy
 
 ### Data Storage
+
 - All command history stored **locally** in SQLite
 - No command data sent to third parties (except AI API for analysis)
 - Database file: `backend/data/shellguard.db`
 
 ### API Key Security
+
 - Google Gemini API key stored in `.env` (not committed to Git)
 - API calls made server-side only
 - Guardrails prevent prompt injection attacks
 
 ### Guardrails
+
 - **Input**: Command length limits, injection prevention, encoding validation
 - **Output**: Alternative safety validation, PII scrubbing, risk score bounds
 - **Hard Blocks**: Catastrophic commands blocked without AI (no API exposure)
 
 ### Observability
+
 - All MCP tool invocations traced via Archestra
 - Latency metrics tracked
 - Token usage monitored
@@ -568,12 +620,14 @@ ShellGuard detects **50+ dangerous patterns** across these categories:
 ## 🧪 Testing
 
 ### Running Backend Tests
+
 ```bash
 cd backend
 pytest tests/
 ```
 
 ### Test Coverage
+
 - `test_pattern_matcher.py`: Pattern detection accuracy
 - `test_interceptor.py`: Command interception logic
 - `test_risk_scorer.py`: Risk score calculations
@@ -582,21 +636,21 @@ pytest tests/
 
 ## 🛠️ Technology Stack
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Frontend Framework** | Next.js 14 (App Router) | React-based UI framework |
-| **Terminal Emulator** | xterm.js 5.3 + FitAddon | Browser-based terminal |
-| **UI Components** | shadcn/ui + Tailwind CSS | Pre-built, styled components |
-| **Icons** | Lucide React | Consistent icon set |
-| **Backend Framework** | FastAPI (Python 3.11+) | Async WebSocket API |
-| **Terminal Backend** | Python `pty` module | Real shell PTY sessions |
-| **WebSocket** | FastAPI WebSocket | Bidirectional real-time |
-| **AI/LLM** | Google Gemini 1.5 Flash | Fast risk analysis |
-| **Agent Orchestration** | Archestra MCP SDK | AI agent management |
-| **Security** | Archestra Guardrails | Command safety enforcement |
-| **Observability** | Archestra Observability | Metrics and tracing |
-| **Database** | SQLite 3 | Embedded, zero-config |
-| **Deployment** | Docker + docker-compose | Containerized deployment |
+| Component               | Technology               | Purpose                      |
+| ----------------------- | ------------------------ | ---------------------------- |
+| **Frontend Framework**  | Next.js 14 (App Router)  | React-based UI framework     |
+| **Terminal Emulator**   | xterm.js 5.3 + FitAddon  | Browser-based terminal       |
+| **UI Components**       | shadcn/ui + Tailwind CSS | Pre-built, styled components |
+| **Icons**               | Lucide React             | Consistent icon set          |
+| **Backend Framework**   | FastAPI (Python 3.11+)   | Async WebSocket API          |
+| **Terminal Backend**    | Python `pty` module      | Real shell PTY sessions      |
+| **WebSocket**           | FastAPI WebSocket        | Bidirectional real-time      |
+| **AI/LLM**              | Google Gemini 1.5 Flash  | Fast risk analysis           |
+| **Agent Orchestration** | Archestra MCP SDK        | AI agent management          |
+| **Security**            | Archestra Guardrails     | Command safety enforcement   |
+| **Observability**       | Archestra Observability  | Metrics and tracing          |
+| **Database**            | SQLite 3                 | Embedded, zero-config        |
+| **Deployment**          | Docker + docker-compose  | Containerized deployment     |
 
 ---
 
@@ -605,6 +659,7 @@ pytest tests/
 ### Environment Variables
 
 **Backend** (`.env` in root):
+
 ```env
 # Required
 GOOGLE_API_KEY=your_gemini_api_key_here
@@ -618,6 +673,7 @@ AI_TIMEOUT_SECONDS=5
 ```
 
 **Frontend** (`.env.local` in frontend/):
+
 ```env
 NEXT_PUBLIC_WS_URL=ws://localhost:8000/ws/terminal
 NEXT_PUBLIC_API_URL=http://localhost:8000/api
@@ -660,6 +716,7 @@ Contributions are welcome! Here's how to help:
 5. **Open** a Pull Request
 
 ### Development Guidelines
+
 - Follow PEP 8 for Python code
 - Use TypeScript for frontend (strict mode)
 - Add tests for new features
@@ -672,18 +729,22 @@ Contributions are welcome! Here's how to help:
 ### Common Issues
 
 **Issue**: "Cannot connect to WebSocket"
+
 - **Solution**: Ensure backend is running on port 8000
 - Check `NEXT_PUBLIC_WS_URL` in frontend `.env.local`
 
 **Issue**: "Google API key invalid"
+
 - **Solution**: Verify `GOOGLE_API_KEY` in backend `.env`
 - Get a key from: https://ai.google.dev/
 
 **Issue**: "PTY not working on Windows"
+
 - **Solution**: Use WSL (Windows Subsystem for Linux)
 - Or use `terminal_windows.py` (limited functionality)
 
 **Issue**: "Commands not being intercepted"
+
 - **Solution**: Check browser console for WebSocket errors
 - Ensure `interceptor.py` is active in backend logs
 
@@ -724,6 +785,7 @@ See [LICENSE](LICENSE) file for details.
 ShellGuard was built for the **Hack All February Series** (Archestra-sponsored hackathon) to solve a real problem: **terminal commands are unforgiving**.
 
 Unlike code that can be reviewed and tested, terminal commands execute instantly and irreversibly. ShellGuard brings:
+
 - **Safety** without sacrificing speed for safe commands
 - **Education** through explanations and alternatives
 - **Transparency** via complete audit trails
