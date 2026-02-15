@@ -47,4 +47,7 @@ htmlcov/
 *.bak
 *.tmp
 
+# Documentation (local only)
+SRS.md
+
 backend/nul
