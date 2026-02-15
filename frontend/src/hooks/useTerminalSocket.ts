@@ -89,8 +89,12 @@ export function useTerminalSocket(options: UseTerminalSocketOptions = {}) {
             case 'analysis_complete':
                 setIsAnalyzing(false)
                 setAnalyzingCommand('')
-                // If analysis shows invalid command, show a toast notification
-                if (message.analysis && message.analysis.title === 'Invalid Command') {
+                // If analysis shows invalid/unknown command, show a toast notification
+                const isInvalidCommand = message.analysis && 
+                    (message.analysis.title === 'Invalid Command' || 
+                     message.analysis.title.includes('Unknown Command'))
+                
+                if (isInvalidCommand) {
                     showToast(`Command not found: "${message.command}". ${message.analysis.explanation}`, 'warning')
                 } else if (message.analysis && message.analysis.title) {
                     // For other safe commands with analysis feedback
